@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #16213e;
+  --papyrus: #efe8d8;
+  --amber: #e8873a;
+  --amber-deep: #c96a22;
+  --teal: #1f7a6c;
+  --charcoal: #2a2a28;
+  --line: #dfd8c8;
+  --muted: #7a7566;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #fff;
+  color: var(--charcoal);
+}
+
+::selection {
+  background: var(--amber);
+  color: #fff;
+}
