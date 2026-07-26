@@ -49,6 +49,19 @@ export default function AdminArticlesPage() {
     refetch();
   }
 
+  async function handleSeedSamples() {
+    if (!confirm("Add 5 sample articles to each category? Existing articles are left untouched.")) return;
+    const res = await authedFetch(`/api/articles/seed-samples`, { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      alert(`Added ${data.inserted} new sample articles across ${data.categories} categories (${data.skipped} already existed and were skipped).`);
+      refetch();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(`Failed to seed samples: ${err.error || res.statusText}`);
+    }
+  }
+
   return (
     <RequireRole roles={["Editor", "Author"]}>
     <div>
@@ -57,12 +70,20 @@ export default function AdminArticlesPage() {
           <h1 className="font-display text-2xl font-semibold text-adminNavy">Articles</h1>
           <p className="text-sm text-gray-500">Drafts, scheduled, and published content.</p>
         </div>
-        <Link
-          href="/admin/articles/new"
-          className="rounded bg-adminOrange px-4 py-2 text-sm font-semibold text-adminNavy hover:bg-adminOrange-dark"
-        >
-          + New article
-        </Link>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSeedSamples}
+            className="rounded border border-adminOrange px-4 py-2 text-sm font-semibold text-adminOrange-dark hover:bg-adminOrange-soft"
+          >
+            Seed samples
+          </button>
+          <Link
+            href="/admin/articles/new"
+            className="rounded bg-adminOrange px-4 py-2 text-sm font-semibold text-adminNavy hover:bg-adminOrange-dark"
+          >
+            + New article
+          </Link>
+        </div>
       </div>
 
       <div className="mb-4 flex gap-2">

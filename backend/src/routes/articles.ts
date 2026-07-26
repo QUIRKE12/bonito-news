@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { Router } from "express";
 import { z } from "zod";
 import { Article } from "../models/Article";
+import { Category } from "../models/Category";
 import { requireRole, optionalAuthenticate, type AuthedRequest } from "../middleware/auth";
 import { recordAuditLog } from "../services/auditLog";
 
@@ -190,6 +191,73 @@ router.delete("/:id", requireRole("Admin", "Editor"), async (req: AuthedRequest,
     meta: { slug: deleted.slug },
   });
   res.json({ success: true });
+});
+
+/**
+ * POST /api/articles/seed-samples — Admin/Editor only.
+ * One-time helper: ensures every existing category has at least 5
+ * published sample articles, so the site has content to browse while
+ * real reporting is being written. Matches by slug, so re-running this
+ * is safe — it only fills gaps, never duplicates or overwrites articles
+ * that already exist.
+ *
+ * Content is intentionally generic placeholder copy (no invented facts,
+ * names, or events) since these are stand-in articles, not real
+ * reporting — swap them out for actual stories before relying on them.
+ */
+const HEADLINE_TEMPLATES = [
+  (name: string) => `${name}: what to know this week`,
+  (name: string) => `Five updates in ${name} you shouldn't miss`,
+  (name: string) => `${name} roundup: the stories shaping the week`,
+  (name: string) => `Inside ${name}: analysis and context`,
+  (name: string) => `${name} today: the latest developments`,
+];
+
+router.post("/seed-samples", requireRole("Admin", "Editor"), async (req: AuthedRequest, res: Response) => {
+  const categories = await Category.find({});
+  if (categories.length === 0) {
+    return res.status(400).json({ error: "No categories exist yet — create categories first" });
+  }
+
+  let inserted = 0;
+  const skipped: string[] = [];
+
+  for (const category of categories) {
+    for (let i = 0; i < HEADLINE_TEMPLATES.length; i++) {
+      const slug = `${category.slug}-sample-${i + 1}`;
+      const exists = await Article.findOne({ slug });
+      if (exists) {
+        skipped.push(slug);
+        continue;
+      }
+
+      const title = HEADLINE_TEMPLATES[i](category.name);
+      await Article.create({
+        slug,
+        title,
+        dek: `Placeholder sample content for the ${category.name} section — replace with real reporting.`,
+        body: `<p>This is placeholder sample content for the <strong>${category.name}</strong> section, generated to preview how articles look on the site. It does not describe any real event, person, or organization.</p><p>Replace this with an actual story before publishing to readers — use the editor to update the title, summary, and body, or delete this sample once real content is ready.</p>`,
+        category: category._id,
+        author: req.user!._id,
+        status: "published",
+        publishedAt: new Date(),
+        readTimeMinutes: 2,
+        isFeatured: false,
+        isBreaking: false,
+      });
+      inserted += 1;
+    }
+  }
+
+  recordAuditLog({
+    actorId: String(req.user!._id),
+    action: "article.seed_samples",
+    targetType: "Article",
+    targetId: "bulk",
+    meta: { inserted, skippedCount: skipped.length },
+  });
+
+  res.json({ inserted, skipped: skipped.length, categories: categories.length });
 });
 
 export default router;
