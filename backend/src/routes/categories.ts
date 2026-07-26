@@ -65,4 +65,40 @@ router.delete("/:id", requireRole("Admin"), async (req: Request, res: Response) 
   res.json({ success: true });
 });
 
+// POST /api/categories/seed-defaults — Admin/Editor only.
+// One-time helper: creates a standard set of news categories. Matches
+// by slug, so already-existing categories are left untouched — safe to
+// click more than once.
+const DEFAULT_CATEGORIES = [
+  { slug: "politics", name: "Politics", colorDot: "#B23A48" },
+  { slug: "business", name: "Business & Economy", colorDot: "#1F7A6C" },
+  { slug: "sports", name: "Sports", colorDot: "#2E7D32" },
+  { slug: "technology", name: "Technology", colorDot: "#1565C0" },
+  { slug: "health", name: "Health", colorDot: "#0097A7" },
+  { slug: "entertainment", name: "Entertainment", colorDot: "#8E24AA" },
+  { slug: "world", name: "World", colorDot: "#455A64" },
+  { slug: "education", name: "Education", colorDot: "#F9A825" },
+  { slug: "culture", name: "Culture & Lifestyle", colorDot: "#D81B60" },
+  { slug: "opinion", name: "Opinion", colorDot: "#6D4C41" },
+  { slug: "environment", name: "Environment", colorDot: "#43A047" },
+  { slug: "crime-justice", name: "Crime & Justice", colorDot: "#C62828" },
+];
+
+router.post("/seed-defaults", requireRole("Admin", "Editor"), async (_req: Request, res: Response) => {
+  let inserted = 0;
+  const skipped: string[] = [];
+
+  for (const c of DEFAULT_CATEGORIES) {
+    const exists = await Category.findOne({ slug: c.slug });
+    if (exists) {
+      skipped.push(c.slug);
+      continue;
+    }
+    await Category.create(c);
+    inserted += 1;
+  }
+
+  res.json({ inserted, skipped: skipped.length, total: DEFAULT_CATEGORIES.length });
+});
+
 export default router;

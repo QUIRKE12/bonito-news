@@ -95,12 +95,33 @@ export default function CategoriesPage() {
     load();
   }
 
+  async function handleSeedDefaults() {
+    if (!confirm("Add 12 standard news categories (Politics, Sports, Technology, etc.)? Existing categories are left untouched.")) return;
+    const res = await authedFetch("/api/categories/seed-defaults", { method: "POST" });
+    if (res.ok) {
+      const data = await res.json();
+      alert(`Added ${data.inserted} new categories (${data.skipped} already existed and were skipped).`);
+      load();
+    } else {
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? "Couldn't seed default categories.");
+    }
+  }
+
   return (
     <RequireRole roles={["Editor"]}>
     <div>
-      <div className="mb-6">
-        <h1 className="font-display text-2xl font-semibold text-adminNavy">Categories &amp; Tags</h1>
-        <p className="mt-1 text-sm text-gray-500">Organize articles into sections and topic tags.</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-adminNavy">Categories &amp; Tags</h1>
+          <p className="mt-1 text-sm text-gray-500">Organize articles into sections and topic tags.</p>
+        </div>
+        <button
+          onClick={handleSeedDefaults}
+          className="rounded border border-adminOrange px-4 py-2 text-sm font-semibold text-adminOrange-dark hover:bg-adminOrange-soft"
+        >
+          Seed defaults
+        </button>
       </div>
 
       {error && (
