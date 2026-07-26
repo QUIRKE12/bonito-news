@@ -1,0 +1,16 @@
+<svg width="136" height="140" viewBox="0 0 136 140" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="amakuru-logo-rainbow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E24B4A" />
+      <stop offset="20%" stop-color="#EF9F27" />
+      <stop offset="40%" stop-color="#639922" />
+      <stop offset="60%" stop-color="#1D9E75" />
+      <stop offset="80%" stop-color="#378ADD" />
+      <stop offset="100%" stop-color="#7F77DD" />
+    </linearGradient>
+  </defs>
+  <rect x="20" y="22" width="96" height="96" rx="48" fill="url(#amakuru-logo-rainbow)" />
+  <path d="M 42 96 L 68 40 L 94 96" fill="none" stroke="#F4F1EA" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 52 76 L 84 76" stroke="#F4F1EA" stroke-width="6" stroke-linecap="round" />
+  <circle cx="94" cy="96" r="5.5" fill="#C4632B" />
+</svg>
