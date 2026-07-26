@@ -5,6 +5,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  sendPasswordResetEmail,
   updateProfile,
 } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase/client";
@@ -41,8 +42,27 @@ export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalP
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
 
   if (!open) return null;
+
+  async function handleResetPassword() {
+    setError(null);
+    setResetSent(false);
+    if (!email) {
+      setError("Enter your email above first, then tap \"Forgot password?\".");
+      return;
+    }
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+    } catch (err: any) {
+      setError(mapFirebaseError(err?.code));
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -110,6 +130,11 @@ export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalP
             {error}
           </div>
         )}
+        {resetSent && (
+          <div className="mb-3 rounded bg-teal/10 px-3 py-2 text-[12.5px] text-teal">
+            Password reset email sent — check your inbox.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           {isSignUp && (
@@ -146,6 +171,16 @@ export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalP
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
             />
+            {!isSignUp && (
+              <button
+                type="button"
+                onClick={handleResetPassword}
+                disabled={loading}
+                className="mt-1.5 text-xs font-semibold text-teal hover:underline disabled:opacity-60"
+              >
+                Forgot password?
+              </button>
+            )}
           </div>
           <button
             type="submit"
