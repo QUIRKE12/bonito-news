@@ -50,7 +50,7 @@ export default function HomePage() {
     <SiteChrome>
       <BreakingTicker articles={breaking} />
 
-      <div className="mx-auto max-w-6xl px-4 py-9 sm:px-6">
+      <div className="mx-auto max-w-[1600px] px-4 py-9 sm:px-8">
         {loading ? (
           <div className="py-24 text-center font-mono text-sm text-muted">Loading…</div>
         ) : articles.length === 0 ? (
@@ -86,9 +86,11 @@ export default function HomePage() {
             )}
 
             <SectionHead label={t("home")} />
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="flex gap-8 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {rest.map((a) => (
-                <ArticleCard key={a._id} article={a} />
+                <div key={a._id} className="w-[260px] flex-none sm:w-[280px]">
+                  <ArticleCard article={a} />
+                </div>
               ))}
             </div>
           </>

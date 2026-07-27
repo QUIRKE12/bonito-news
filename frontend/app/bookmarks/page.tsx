@@ -33,7 +33,7 @@ export default function BookmarksPage() {
 
   return (
     <SiteChrome>
-      <div className="mx-auto max-w-6xl px-4 py-9 sm:px-6">
+      <div className="mx-auto max-w-[1600px] px-4 py-9 sm:px-8">
         <div className="mb-7 border-b-[3px] border-ink pb-4">
           <span className="font-mono text-xs uppercase tracking-wide text-muted">Your library</span>
           <h1 className="font-display text-[34px] font-semibold text-ink">Saved Articles</h1>
