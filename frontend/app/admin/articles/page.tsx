@@ -49,32 +49,6 @@ export default function AdminArticlesPage() {
     refetch();
   }
 
-  async function handleSeedSamples() {
-    if (!confirm("Add 5 sample articles to each category? Existing articles are left untouched.")) return;
-    const res = await authedFetch(`/api/articles/seed-samples`, { method: "POST" });
-    if (res.ok) {
-      const data = await res.json();
-      alert(`Added ${data.inserted} new sample articles across ${data.categories} categories (${data.skipped} already existed and were skipped).`);
-      refetch();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      alert(`Failed to seed samples: ${err.error || res.statusText}`);
-    }
-  }
-
-  async function handleDeleteSamples() {
-    if (!confirm("Delete all placeholder sample articles (the ones added by 'Seed samples')? This cannot be undone.")) return;
-    const res = await authedFetch(`/api/articles/seed-samples`, { method: "DELETE" });
-    if (res.ok) {
-      const data = await res.json();
-      alert(`Deleted ${data.deleted} sample articles.`);
-      refetch();
-    } else {
-      const err = await res.json().catch(() => ({}));
-      alert(`Failed to delete samples: ${err.error || res.statusText}`);
-    }
-  }
-
   return (
     <RequireRole roles={["Editor", "Author"]}>
     <div>
@@ -84,18 +58,6 @@ export default function AdminArticlesPage() {
           <p className="text-sm text-gray-500">Drafts, scheduled, and published content.</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={handleDeleteSamples}
-            className="rounded border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
-          >
-            Delete samples
-          </button>
-          <button
-            onClick={handleSeedSamples}
-            className="rounded border border-adminOrange px-4 py-2 text-sm font-semibold text-adminOrange-dark hover:bg-adminOrange-soft"
-          >
-            Seed samples
-          </button>
           <Link
             href="/admin/articles/new"
             className="rounded bg-adminOrange px-4 py-2 text-sm font-semibold text-adminNavy hover:bg-adminOrange-dark"
