@@ -14,6 +14,8 @@ export type AuditAction =
   | "article.update"
   | "article.publish"
   | "article.delete"
+  | "article.seed_samples"
+  | "article.delete_samples"
   | "comment.moderate"
   | "comment.delete"
   | "user.role_change"

@@ -178,6 +178,25 @@ router.patch("/:id", requireRole("Admin", "Editor", "Author"), async (req: Authe
 });
 
 // DELETE /api/articles/:id — Editor/Admin only
+// DELETE /api/articles/seed-samples — Admin/Editor only.
+// Removes exactly the placeholder articles seed-samples created (slug
+// ends in "-sample-<n>"), so you can clean them up in one click instead
+// of deleting each one by hand. Never touches real articles. Must stay
+// registered before DELETE "/:id" below — otherwise Express matches
+// "/:id" first and tries (and fails) to delete an article whose id is
+// literally the string "seed-samples".
+router.delete("/seed-samples", requireRole("Admin", "Editor"), async (req: AuthedRequest, res: Response) => {
+  const result = await Article.deleteMany({ slug: { $regex: /-sample-\d+$/ } });
+  recordAuditLog({
+    actorId: String(req.user!._id),
+    action: "article.delete_samples",
+    targetType: "Article",
+    targetId: String(req.user!._id),
+    meta: { deletedCount: result.deletedCount },
+  });
+  res.json({ deleted: result.deletedCount });
+});
+
 router.delete("/:id", requireRole("Admin", "Editor"), async (req: AuthedRequest, res: Response) => {
   const deleted = await Article.findByIdAndDelete(req.params.id);
   if (!deleted) {
@@ -253,7 +272,7 @@ router.post("/seed-samples", requireRole("Admin", "Editor"), async (req: AuthedR
     actorId: String(req.user!._id),
     action: "article.seed_samples",
     targetType: "Article",
-    targetId: "bulk",
+    targetId: String(req.user!._id),
     meta: { inserted, skippedCount: skipped.length },
   });
 
