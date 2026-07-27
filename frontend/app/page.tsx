@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiUrl } from "@/lib/api";
-import type { ArticleSummary } from "@/lib/types";
+import type { ArticleSummary, CategorySummary } from "@/lib/types";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import SiteChrome from "@/components/site/SiteChrome";
 import BreakingTicker from "@/components/site/BreakingTicker";
@@ -11,17 +11,24 @@ import SectionHead from "@/components/site/SectionHead";
 import ArticleCard from "@/components/site/ArticleCard";
 import NewsletterBox from "@/components/site/NewsletterBox";
 
+interface CategoryRow {
+  category: CategorySummary;
+  articles: ArticleSummary[];
+}
+
 /**
  * The public homepage. This used to be a stray copy of the admin
  * dashboard (app/admin/page.tsx) — that content already lives correctly
  * under /admin; this file now renders what a reader actually sees at "/":
- * a hero story, a breaking-news ticker, and a grid of the latest published
- * articles, using the same SiteChrome/ArticleCard components the category
+ * a hero story, a breaking-news ticker, a "Latest" row, then every
+ * category with published articles gets its own horizontally-scrolling
+ * row, using the same SiteChrome/ArticleCard components the category
  * and article pages already use.
  */
 export default function HomePage() {
   const { t } = useLanguage();
   const [articles, setArticles] = useState<ArticleSummary[]>([]);
+  const [categoryRows, setCategoryRows] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,9 +36,25 @@ export default function HomePage() {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(apiUrl("/api/articles?limit=24"));
-        const data = await res.json();
-        if (!cancelled) setArticles(data.articles || []);
+        const [articlesRes, categoriesRes] = await Promise.all([
+          fetch(apiUrl("/api/articles?limit=24")),
+          fetch(apiUrl("/api/categories")),
+        ]);
+        const articlesData = await articlesRes.json();
+        const categoriesData = await categoriesRes.json();
+        if (cancelled) return;
+
+        setArticles(articlesData.articles || []);
+
+        const categories: CategorySummary[] = categoriesData.categories || [];
+        const rows = await Promise.all(
+          categories.map(async (category) => {
+            const res = await fetch(apiUrl(`/api/articles?category=${category._id}&limit=8`));
+            const data = await res.json();
+            return { category, articles: (data.articles || []) as ArticleSummary[] };
+          })
+        );
+        if (!cancelled) setCategoryRows(rows.filter((r) => r.articles.length > 0));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -93,6 +116,23 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
+
+            {categoryRows.map(({ category, articles: catArticles }) => (
+              <div key={category._id} className="mt-12">
+                <SectionHead
+                  label={category.name}
+                  dotColor={category.colorDot}
+                  seeAllHref={`/category/${category.slug}`}
+                />
+                <div className="flex gap-8 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {catArticles.map((a) => (
+                    <div key={a._id} className="w-[260px] flex-none sm:w-[280px]">
+                      <ArticleCard article={a} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </>
         )}
       </div>
