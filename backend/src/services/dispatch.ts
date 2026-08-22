@@ -14,7 +14,6 @@
 //     usage as a starting point if you want a sendPushToUsers() variant).
 
 import { Notification } from "../models/Notification";
-import { sendPushToUser } from "./push";
 
 type DispatchArgs = {
   userId: string; // recipient
@@ -25,6 +24,9 @@ type DispatchArgs = {
   meta?: Record<string, unknown>;
 };
 
+// Push delivery (Firebase Cloud Messaging) was removed — this project no
+// longer depends on Firebase for anything. Notifications are in-app only
+// (notification bell / feed), backed by the Notification model below.
 export async function dispatchNotification({ userId, type, title, body, url, meta }: DispatchArgs) {
   await Notification.create({
     user: userId,
@@ -35,12 +37,4 @@ export async function dispatchNotification({ userId, type, title, body, url, met
     meta,
     read: false,
   });
-
-  // Push failures shouldn't break the calling request (e.g. don't fail a
-  // comment-approval PATCH just because a push send hiccuped).
-  try {
-    await sendPushToUser(userId, { title, body, url });
-  } catch (err) {
-    console.error(`[dispatchNotification] push failed for user ${userId}:`, err);
-  }
 }

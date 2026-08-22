@@ -5,7 +5,6 @@ export type SupportedLanguage = "en" | "fr" | "rn";
 
 export interface IUser extends Document {
   passwordHash: string; // bcrypt hash, used by the custom JWT auth system
-  firebaseUid?: string; // legacy: linked accounts from the old Firebase Authentication system
   email: string;
   name: string;
   avatarUrl?: string;
@@ -16,7 +15,6 @@ export interface IUser extends Document {
     categories: string[]; // e.g. ["Politics", "Business"]
     breakingNewsOnly: boolean;
   };
-  fcmTokens: string[]; // device tokens for push notifications
   bookmarks: Schema.Types.ObjectId[];
   readingHistory: {
     article: Schema.Types.ObjectId;
@@ -30,7 +28,6 @@ export interface IUser extends Document {
 const UserSchema = new Schema<IUser>(
   {
     passwordHash: { type: String, required: true, select: false },
-    firebaseUid: { type: String, unique: true, sparse: true, index: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     name: { type: String, required: true, trim: true },
     avatarUrl: { type: String },
@@ -50,7 +47,6 @@ const UserSchema = new Schema<IUser>(
       categories: { type: [String], default: [] },
       breakingNewsOnly: { type: Boolean, default: false },
     },
-    fcmTokens: { type: [String], default: [] },
     bookmarks: [{ type: Schema.Types.ObjectId, ref: "Article" }],
     readingHistory: [
       {

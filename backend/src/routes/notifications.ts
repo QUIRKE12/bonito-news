@@ -3,7 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { Notification } from "../models/Notification";
 import { User } from "../models/User";
-import { requireRole, authenticate, type AuthedRequest } from "../middleware/auth";
+import { requireRole, type AuthedRequest } from "../middleware/auth";
 
 const router = Router();
 
@@ -53,24 +53,6 @@ router.post("/", requireRole("Admin", "Editor"), async (req: AuthedRequest, res:
   });
 
   res.status(201).json({ notification });
-});
-
-// POST /api/notifications/register-token — any signed-in user, adds a device token
-router.post("/register-token", authenticate, async (req: AuthedRequest, res: Response) => {
-  const { token } = req.body ?? {};
-  if (!token) return res.status(400).json({ error: "token is required" });
-
-  await User.updateOne({ _id: req.user!._id }, { $addToSet: { fcmTokens: token } });
-  res.json({ ok: true });
-});
-
-// DELETE /api/notifications/register-token — removes a device token (sign-out / permission revoke)
-router.delete("/register-token", authenticate, async (req: AuthedRequest, res: Response) => {
-  const { token } = req.body ?? {};
-  if (!token) return res.status(400).json({ error: "token is required" });
-
-  await User.updateOne({ _id: req.user!._id }, { $pull: { fcmTokens: token } });
-  res.json({ ok: true });
 });
 
 export default router;

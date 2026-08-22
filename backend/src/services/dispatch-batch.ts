@@ -9,7 +9,6 @@
  */
 
 import { Notification } from "../models/Notification";
-import { sendPushToUsers, type PushPayload } from "./push-batch";
 
 export interface DispatchBatchInput {
   userIds: string[];
@@ -22,15 +21,15 @@ export interface DispatchBatchInput {
 
 export interface DispatchBatchResult {
   created: number;
-  push: { sent: number; failed: number; prunedTokens: number };
 }
 
-/**
- * Creates one Notification document per user and sends a single batched
- * push across all of them. Use this in place of looping
- * `dispatchNotification` per user (e.g. "article published, notify all
- * subscribers").
- */
+// Push delivery (Firebase Cloud Messaging) was removed — this project no
+// longer depends on Firebase for anything. Notifications are in-app only
+// (notification bell / feed), backed by the Notification model below.
+//
+// Creates one Notification document per user. Use this in place of looping
+// `dispatchNotification` per user (e.g. "article published, notify all
+// subscribers").
 export async function dispatchNotificationBatch({
   userIds,
   type,
@@ -40,7 +39,7 @@ export async function dispatchNotificationBatch({
   meta,
 }: DispatchBatchInput): Promise<DispatchBatchResult> {
   if (userIds.length === 0) {
-    return { created: 0, push: { sent: 0, failed: 0, prunedTokens: 0 } };
+    return { created: 0 };
   }
 
   const docs = userIds.map((userId) => ({
@@ -55,15 +54,5 @@ export async function dispatchNotificationBatch({
 
   const inserted = await Notification.insertMany(docs);
 
-  // Push failures shouldn't break the calling request, same as the
-  // single-user dispatchNotification.
-  let pushResult = { sent: 0, failed: 0, prunedTokens: 0 };
-  try {
-    const payload: PushPayload = { title, body, url };
-    pushResult = await sendPushToUsers(userIds, payload);
-  } catch (err) {
-    console.error(`[dispatchNotificationBatch] push failed for ${userIds.length} users:`, err);
-  }
-
-  return { created: inserted.length, push: pushResult };
+  return { created: inserted.length };
 }
