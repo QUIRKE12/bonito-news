@@ -3,14 +3,12 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
 import { useAuthUser } from "@/lib/hooks/useAuthUser";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
 import { STAFF_ROLES, getVisibleNavItems } from "@/lib/permissions";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { profile, loading, firebaseUser } = useAuthUser();
+  const { profile, loading, isSignedIn, logout } = useAuthUser();
   const { t } = useLanguage();
   const pathname = usePathname();
 
@@ -22,7 +20,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!firebaseUser || !profile) {
+  if (!isSignedIn || !profile) {
     return (
       <div className="mx-auto max-w-md p-8 text-center">
         <h1 className="font-display text-2xl font-semibold text-adminNavy">{t("adminSignInRequiredTitle")}</h1>
@@ -80,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="mt-1 font-medium text-white">{profile.name}</div>
           <div className="text-adminOrange">{profile.role}</div>
           <button
-            onClick={() => signOut(auth)}
+            onClick={() => logout()}
             className="mt-3 w-full rounded border border-white/20 px-3 py-1.5 text-xs font-semibold text-white hover:bg-adminOrange hover:border-adminOrange hover:text-adminNavy"
           >
             {t("adminSignOut")}

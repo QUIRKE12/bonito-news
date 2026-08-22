@@ -6,10 +6,9 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
-import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
-import { auth } from "@/lib/firebase/client";
 import { apiUrl } from "@/lib/api";
 import type { UserRole } from "@/lib/types";
 
@@ -22,89 +21,175 @@ export interface AppUserProfile {
   language: string;
 }
 
+interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
 interface AuthUserState {
-  firebaseUser: FirebaseUser | null;
   profile: AppUserProfile | null;
+  isSignedIn: boolean;
   loading: boolean;
-  /** Convenience fetch wrapper that attaches the current Firebase ID token. */
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
+  logout: () => Promise<void>;
+  /** Convenience fetch wrapper that attaches the current access token and
+   * transparently retries once via /api/auth/refresh on a 401. */
   authedFetch: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
 const AuthUserContext = createContext<AuthUserState | null>(null);
 
+const REFRESH_TOKEN_STORAGE_KEY = "bonito_refresh_token";
+
 /**
  * Single source of truth for "who's logged in and what can they do",
  * shared by the whole app via context.
  *
- * Previously every component called a standalone useAuthUser() hook that
- * ran its OWN Firebase onAuthStateChanged listener and its OWN
- * POST /api/auth/sync call. Firebase can fire that listener once with a
- * null user before it resolves the real signed-in session on page load —
- * harmless for a component that mounted early enough to already have the
- * resolved profile, but any component that mounted its own separate
- * listener later (e.g. a RequireRole check nested a level deeper than the
- * sidebar) could catch that transient null, set loading=false with
- * profile=null, and never re-check — showing "Not authorized" for an
- * Admin who very much is authorized. Making this a single provider
- * mounted once at the root fixes that: there's exactly one listener and
- * one profile, so every consumer sees the same state at the same time.
+ * Replaces the old Firebase onAuthStateChanged-driven provider with a
+ * custom JWT flow: the access token lives only in memory (this component's
+ * state), the refresh token is persisted in localStorage so a page reload
+ * doesn't force a re-login, and authedFetch handles refreshing an expired
+ * access token transparently.
  */
 export function AuthUserProvider({ children }: { children: ReactNode }) {
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<AppUserProfile | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Keep a ref in sync with accessToken so authedFetch (a stable useCallback)
+  // always reads the latest token without needing to be recreated.
+  const accessTokenRef = useRef<string | null>(null);
+  accessTokenRef.current = accessToken;
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      setFirebaseUser(fbUser);
-      if (!fbUser) {
-        setProfile(null);
-        setLoading(false);
-        return;
-      }
-      try {
-        const idToken = await fbUser.getIdToken();
-        const res = await fetch(apiUrl("/api/auth/sync"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            idToken,
-            name: fbUser.displayName || undefined,
-            avatarUrl: fbUser.photoURL || undefined,
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setProfile(data.user);
-        } else {
-          setProfile(null);
-        }
-      } catch {
-        setProfile(null);
-      } finally {
-        setLoading(false);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const authedFetch = useCallback(async (input: string, init: RequestInit = {}) => {
-    const idToken = await auth.currentUser?.getIdToken();
-    const headers = new Headers(init.headers);
-    if (idToken) headers.set("Authorization", `Bearer ${idToken}`);
-    // Every call site in this app that sends a body passes a raw JSON
-    // string without setting Content-Type — without it, the backend's
-    // express.json() middleware won't parse the body at all, so PATCH/POST
-    // requests would silently arrive as an empty req.body. Default it here
-    // once instead of patching every call site.
-    if (init.body && !headers.has("Content-Type")) {
-      headers.set("Content-Type", "application/json");
+  const applySession = useCallback((tokens: AuthTokens, user: AppUserProfile) => {
+    setAccessToken(tokens.accessToken);
+    accessTokenRef.current = tokens.accessToken;
+    setProfile(user);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, tokens.refreshToken);
     }
-    return fetch(apiUrl(input), { ...init, headers });
   }, []);
+
+  const clearSession = useCallback(() => {
+    setAccessToken(null);
+    accessTokenRef.current = null;
+    setProfile(null);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+    }
+  }, []);
+
+  // Attempt a silent refresh using the stored refresh token. Returns the
+  // new access token on success, or null if there's no valid session.
+  const tryRefresh = useCallback(async (): Promise<string | null> => {
+    const refreshToken =
+      typeof window !== "undefined" ? window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) : null;
+    if (!refreshToken) return null;
+
+    try {
+      const res = await fetch(apiUrl("/api/auth/refresh"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) {
+        clearSession();
+        return null;
+      }
+      const data = await res.json();
+      applySession({ accessToken: data.accessToken, refreshToken: data.refreshToken }, data.user);
+      return data.accessToken as string;
+    } catch {
+      clearSession();
+      return null;
+    }
+  }, [applySession, clearSession]);
+
+  // On mount: try to silently restore a session from the stored refresh
+  // token, so a page reload doesn't sign the user out.
+  useEffect(() => {
+    (async () => {
+      await tryRefresh();
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const res = await fetch(apiUrl("/api/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Sign in failed");
+      }
+      applySession({ accessToken: data.accessToken, refreshToken: data.refreshToken }, data.user);
+    },
+    [applySession]
+  );
+
+  const register = useCallback(
+    async (email: string, password: string, name: string) => {
+      const res = await fetch(apiUrl("/api/auth/register"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Account creation failed");
+      }
+      applySession({ accessToken: data.accessToken, refreshToken: data.refreshToken }, data.user);
+    },
+    [applySession]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await fetch(apiUrl("/api/auth/logout"), { method: "POST" });
+    } catch {
+      // Best-effort — nothing server-side to fail on since sessions are
+      // stateless, but don't let a network error block clearing local state.
+    }
+    clearSession();
+  }, [clearSession]);
+
+  const authedFetch = useCallback(
+    async (input: string, init: RequestInit = {}): Promise<Response> => {
+      const buildHeaders = (token: string | null) => {
+        const headers = new Headers(init.headers);
+        if (token) headers.set("Authorization", `Bearer ${token}`);
+        // Every call site in this app that sends a body passes a raw JSON
+        // string without setting Content-Type — without it, the backend's
+        // express.json() middleware won't parse the body at all.
+        if (init.body && !headers.has("Content-Type")) {
+          headers.set("Content-Type", "application/json");
+        }
+        return headers;
+      };
+
+      let res = await fetch(apiUrl(input), { ...init, headers: buildHeaders(accessTokenRef.current) });
+
+      // Access token likely expired — refresh once and retry.
+      if (res.status === 401 && accessTokenRef.current) {
+        const newToken = await tryRefresh();
+        if (newToken) {
+          res = await fetch(apiUrl(input), { ...init, headers: buildHeaders(newToken) });
+        }
+      }
+
+      return res;
+    },
+    [tryRefresh]
+  );
 
   return (
-    <AuthUserContext.Provider value={{ firebaseUser, profile, loading, authedFetch }}>
+    <AuthUserContext.Provider
+      value={{ profile, isSignedIn: !!profile, loading, login, register, logout, authedFetch }}
+    >
       {children}
     </AuthUserContext.Provider>
   );

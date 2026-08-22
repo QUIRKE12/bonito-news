@@ -4,7 +4,8 @@ export type UserRole = "Admin" | "Editor" | "Author" | "Moderator" | "Subscriber
 export type SupportedLanguage = "en" | "fr" | "rn";
 
 export interface IUser extends Document {
-  firebaseUid: string; // links to Firebase Authentication
+  passwordHash: string; // bcrypt hash, used by the custom JWT auth system
+  firebaseUid?: string; // legacy: linked accounts from the old Firebase Authentication system
   email: string;
   name: string;
   avatarUrl?: string;
@@ -28,7 +29,8 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>(
   {
-    firebaseUid: { type: String, required: true, unique: true, index: true },
+    passwordHash: { type: String, required: true, select: false },
+    firebaseUid: { type: String, unique: true, sparse: true, index: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     name: { type: String, required: true, trim: true },
     avatarUrl: { type: String },

@@ -27,7 +27,7 @@ function initials(name?: string | null) {
 }
 
 export default function SiteHeader() {
-  const { profile, firebaseUser, loading } = useAuthUser();
+  const { profile, loading } = useAuthUser();
   const { t } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
@@ -38,7 +38,7 @@ export default function SiteHeader() {
     day: "numeric",
   });
 
-  const isSignedIn = !loading && !!firebaseUser;
+  const isSignedIn = !loading && !!profile;
 
   return (
     <>
@@ -101,9 +101,9 @@ export default function SiteHeader() {
               className="mt-2 flex items-center gap-2 rounded-full bg-papyrus py-1.5 pl-1.5 pr-3 text-[13px] font-semibold text-ink sm:mt-0"
             >
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-teal font-display text-[11px] font-semibold text-white">
-                {initials(profile?.name || firebaseUser?.displayName)}
+                {initials(profile?.name)}
               </span>
-              {profile?.name || firebaseUser?.displayName || t("account")}
+              {profile?.name || t("account")}
             </Link>
           ) : (
             <button

@@ -1,15 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  sendPasswordResetEmail,
-  updateProfile,
-} from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase/client";
-import { apiUrl } from "@/lib/api";
+import { useAuthUser } from "@/lib/hooks/useAuthUser";
 
 interface AuthModalProps {
   open: boolean;
@@ -17,52 +9,16 @@ interface AuthModalProps {
   onAuthenticated: () => void; // parent refetches session / user profile
 }
 
-async function syncUserToBackend(name?: string) {
-  const idToken = await auth.currentUser?.getIdToken();
-  if (!idToken) throw new Error("No ID token available after sign-in");
-
-  const res = await fetch(apiUrl("/api/auth/sync"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, name }),
-  });
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "Failed to sync user profile");
-  }
-
-  return res.json();
-}
-
 export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalProps) {
+  const { login, register } = useAuthUser();
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resetSent, setResetSent] = useState(false);
 
   if (!open) return null;
-
-  async function handleResetPassword() {
-    setError(null);
-    setResetSent(false);
-    if (!email) {
-      setError("Enter your email above first, then tap \"Forgot password?\".");
-      return;
-    }
-    setLoading(true);
-    try {
-      await sendPasswordResetEmail(auth, email);
-      setResetSent(true);
-    } catch (err: any) {
-      setError(mapFirebaseError(err?.code));
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,33 +26,14 @@ export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalP
     setLoading(true);
     try {
       if (isSignUp) {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        if (name) {
-          await updateProfile(cred.user, { displayName: name });
-        }
+        await register(email, password, name);
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        await login(email, password);
       }
-      await syncUserToBackend(name || undefined);
       onAuthenticated();
       onClose();
     } catch (err: any) {
-      setError(mapFirebaseError(err?.code));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleGoogleSignIn() {
-    setError(null);
-    setLoading(true);
-    try {
-      const cred = await signInWithPopup(auth, googleProvider);
-      await syncUserToBackend(cred.user.displayName || undefined);
-      onAuthenticated();
-      onClose();
-    } catch (err: any) {
-      setError(mapFirebaseError(err?.code));
+      setError(err?.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -130,11 +67,6 @@ export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalP
             {error}
           </div>
         )}
-        {resetSent && (
-          <div className="mb-3 rounded bg-teal/10 px-3 py-2 text-[12.5px] text-teal">
-            Password reset email sent — check your inbox.
-          </div>
-        )}
 
         <form onSubmit={handleSubmit}>
           {isSignUp && (
@@ -143,6 +75,7 @@ export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalP
               <input
                 className="w-full rounded border border-line px-3 py-2.5 text-sm focus:border-teal focus:outline-none"
                 type="text"
+                required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Your name"
@@ -172,14 +105,9 @@ export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalP
               placeholder="••••••••"
             />
             {!isSignUp && (
-              <button
-                type="button"
-                onClick={handleResetPassword}
-                disabled={loading}
-                className="mt-1.5 text-xs font-semibold text-teal hover:underline disabled:opacity-60"
-              >
-                Forgot password?
-              </button>
+              <p className="mt-1.5 text-xs text-muted">
+                Forgot your password? Contact an admin to have it reset.
+              </p>
             )}
           </div>
           <button
@@ -190,14 +118,6 @@ export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalP
             {loading ? "Please wait…" : isSignUp ? "Create account" : "Sign in"}
           </button>
         </form>
-
-        <button
-          onClick={handleGoogleSignIn}
-          disabled={loading}
-          className="mt-2.5 flex w-full items-center justify-center gap-2 rounded border border-line py-2.5 text-[13.5px] font-semibold hover:border-ink disabled:opacity-60"
-        >
-          🔵 Continue with Google
-        </button>
 
         <div className="mt-4 text-center text-xs text-muted">
           <span>{isSignUp ? "Already have an account?" : "Don't have an account?"}</span>{" "}
@@ -211,21 +131,4 @@ export default function AuthModal({ open, onClose, onAuthenticated }: AuthModalP
       </div>
     </div>
   );
-}
-
-function mapFirebaseError(code?: string): string {
-  switch (code) {
-    case "auth/email-already-in-use":
-      return "That email is already registered — try signing in instead.";
-    case "auth/invalid-credential":
-    case "auth/wrong-password":
-    case "auth/user-not-found":
-      return "Incorrect email or password.";
-    case "auth/weak-password":
-      return "Password should be at least 6 characters.";
-    case "auth/popup-closed-by-user":
-      return "Google sign-in was cancelled.";
-    default:
-      return "Something went wrong. Please try again.";
-  }
 }

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { verifyIdToken } from "../config/firebase";
+import { verifyAccessToken } from "../config/jwt";
 import { User, type UserRole, type IUser } from "../models/User";
 
 export interface AuthedRequest extends Request {
@@ -7,11 +7,10 @@ export interface AuthedRequest extends Request {
 }
 
 /**
- * Reads the Firebase ID token from the Authorization header
+ * Reads the app-issued JWT access token from the Authorization header
  * ("Bearer <token>"), verifies it, and loads the matching Mongo user onto
- * req.user. Same logic as getAuthenticatedUser() in the old Next.js
- * requireRole.ts, just expressed as Express middleware instead of a
- * helper each route called manually.
+ * req.user. Replaces the old Firebase ID token check — RBAC below this
+ * point (requireRole, role checks) is unchanged.
  */
 export async function authenticate(req: AuthedRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
@@ -22,8 +21,8 @@ export async function authenticate(req: AuthedRequest, res: Response, next: Next
   }
 
   try {
-    const decoded = await verifyIdToken(token);
-    const user = await User.findOne({ firebaseUid: decoded.uid });
+    const decoded = verifyAccessToken(token);
+    const user = await User.findById(decoded.sub);
 
     if (!user) {
       return res.status(404).json({ error: "User profile not found" });
@@ -52,8 +51,8 @@ export async function optionalAuthenticate(req: AuthedRequest, _res: Response, n
   if (!token) return next();
 
   try {
-    const decoded = await verifyIdToken(token);
-    const user = await User.findOne({ firebaseUid: decoded.uid });
+    const decoded = verifyAccessToken(token);
+    const user = await User.findById(decoded.sub);
     if (user && user.status !== "deactivated") {
       req.user = user;
     }
