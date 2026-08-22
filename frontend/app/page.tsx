@@ -8,7 +8,8 @@ import { useLanguage } from "@/lib/i18n/LanguageContext";
 import SiteChrome from "@/components/site/SiteChrome";
 import BreakingTicker from "@/components/site/BreakingTicker";
 import SectionHead from "@/components/site/SectionHead";
-import ArticleCard from "@/components/site/ArticleCard";
+import TrendingList from "@/components/site/TrendingList";
+import TrendingGrid from "@/components/site/TrendingGrid";
 import NewsletterBox from "@/components/site/NewsletterBox";
 
 interface CategoryRow {
@@ -20,10 +21,10 @@ interface CategoryRow {
  * The public homepage. This used to be a stray copy of the admin
  * dashboard (app/admin/page.tsx) — that content already lives correctly
  * under /admin; this file now renders what a reader actually sees at "/":
- * a hero story, a breaking-news ticker, a "Latest" row, then every
- * category with published articles gets its own horizontally-scrolling
- * row, using the same SiteChrome/ArticleCard components the category
- * and article pages already use.
+ * a hero story, a breaking-news ticker, a two-column "Latest" section
+ * (TrendingList on the left, TrendingGrid on the right), then every
+ * category with published articles gets its own TrendingGrid tile block
+ * under its SectionHead. No horizontal scrolling anywhere on the page.
  */
 export default function HomePage() {
   const { t } = useLanguage();
@@ -68,6 +69,8 @@ export default function HomePage() {
   const breaking = articles.filter((a) => a.isBreaking);
   const featured = articles.find((a) => a.isFeatured) || articles[0];
   const rest = articles.filter((a) => a._id !== featured?._id).slice(0, 12);
+  const listArticles = rest.slice(0, 5);
+  const gridArticles = rest.slice(5, 11);
 
   return (
     <SiteChrome>
@@ -109,12 +112,9 @@ export default function HomePage() {
             )}
 
             <SectionHead label={t("home")} />
-            <div className="flex gap-8 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              {rest.map((a) => (
-                <div key={a._id} className="w-[260px] flex-none sm:w-[280px]">
-                  <ArticleCard article={a} />
-                </div>
-              ))}
+            <div className="grid gap-x-10 gap-y-8 lg:grid-cols-[360px_1fr]">
+              <TrendingList articles={listArticles} />
+              <TrendingGrid articles={gridArticles} />
             </div>
 
             {categoryRows.map(({ category, articles: catArticles }) => (
@@ -124,13 +124,7 @@ export default function HomePage() {
                   dotColor={category.colorDot}
                   seeAllHref={`/category/${category.slug}`}
                 />
-                <div className="flex gap-8 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                  {catArticles.map((a) => (
-                    <div key={a._id} className="w-[260px] flex-none sm:w-[280px]">
-                      <ArticleCard article={a} />
-                    </div>
-                  ))}
-                </div>
+                <TrendingGrid articles={catArticles.slice(0, 6)} />
               </div>
             ))}
           </>
