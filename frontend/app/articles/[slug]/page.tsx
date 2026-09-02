@@ -7,6 +7,7 @@ import { apiUrl } from "@/lib/api";
 import type { ArticleDetail } from "@/lib/types";
 import SiteChrome from "@/components/site/SiteChrome";
 import BookmarkButton from "@/components/BookmarkButton";
+import ShareButtons from "@/components/ShareButtons";
 import CommentThread from "@/components/CommentThread";
 
 function formatDate(dateStr?: string) {
@@ -90,7 +91,13 @@ export default function ArticlePage() {
             {article.author?.name && <>By <span className="font-semibold text-ink">{article.author.name}</span> · </>}
             {formatDate(article.publishedAt || article.createdAt)} · {article.readTimeMinutes} min read
           </span>
-          <BookmarkButton articleId={article._id} />
+          <div className="flex items-center gap-3">
+            <ShareButtons
+              url={typeof window !== "undefined" ? window.location.href : ""}
+              title={article.title}
+            />
+            <BookmarkButton articleId={article._id} />
+          </div>
         </div>
 
         {article.coverImage?.secureUrl && (
